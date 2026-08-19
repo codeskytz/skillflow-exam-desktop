@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AppButton } from '../components/ui';
+import { AppButton, BrandMark } from '../components/ui';
 import { validateExamCode } from '../api';
 
 /**
@@ -37,6 +37,7 @@ export default function ExamCodeScreen({ navigation }) {
     <div className="screen">
       <header className="topbar">
         <button type="button" className="icon-btn" onClick={() => navigation.goBack()} aria-label="Back">←</button>
+        <BrandMark />
         <h1>Start an exam</h1>
       </header>
 

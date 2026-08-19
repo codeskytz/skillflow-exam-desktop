@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electron');
 const path = require('node:path');
-const started = require('electron-squirrel-startup');
+const fs = require('node:fs');
+const { spawn } = require('node:child_process');
 
 /**
  * Skillflow Exam — desktop shell.
@@ -16,8 +17,64 @@ const started = require('electron-squirrel-startup');
  * it. The aim is that leaving the exam is deliberate, visible, and recorded.
  */
 
-// Squirrel runs the app during install/uninstall; quit immediately if so.
-if (started) {
+/**
+ * Squirrel install/update/uninstall handling.
+ *
+ * This was the `electron-squirrel-startup` package. Forge's Vite build ships
+ * only the bundle — the packaged asar contains no node_modules — and Rollup
+ * leaves every `require()` in this CJS main process as an external, so the
+ * import survived into the build and resolved to nothing. An installed copy
+ * died with "Cannot find module 'electron-squirrel-startup'" before a window
+ * ever appeared. Inlined here it cannot go missing; a separate file would not
+ * have helped, because a relative require is left external just the same.
+ *
+ * Squirrel launches the newly installed binary with a flag and expects it to
+ * set itself up and exit. The shortcut calls are what put the app in the Start
+ * Menu and on the desktop; without them it installs with no way to launch it.
+ *
+ * @returns {boolean} true when this launch was Squirrel rather than a user.
+ */
+function handleSquirrelEvent() {
+  if (process.platform !== 'win32' || process.argv.length < 2) {
+    return false;
+  }
+
+  const target = path.basename(process.execPath);
+
+  // Update.exe sits one level above the versioned app-x.y.z directory. The
+  // child is detached so it outlives the quit that follows immediately.
+  const runUpdate = (args) => {
+    try {
+      const updateExe = path.resolve(path.dirname(process.execPath), '..', 'Update.exe');
+      spawn(updateExe, args, { detached: true });
+    } catch {
+      // A missing Update.exe must not strand the process; quitting is still
+      // the right move, just without shortcuts.
+    }
+  };
+
+  switch (process.argv[1]) {
+    case '--squirrel-install':
+    case '--squirrel-updated':
+      runUpdate([`--createShortcut=${target}`]);
+
+      return true;
+
+    case '--squirrel-uninstall':
+      runUpdate([`--removeShortcut=${target}`]);
+
+      return true;
+
+    // An older version being retired after an update.
+    case '--squirrel-obsolete':
+      return true;
+
+    default:
+      return false;
+  }
+}
+
+if (handleSquirrelEvent()) {
   app.quit();
 }
 
@@ -29,6 +86,22 @@ let examLocked = false;
 
 const isDev = !app.isPackaged;
 
+/**
+ * The platform logo for the window and the taskbar.
+ *
+ * Windows and macOS take the icon from the packaged executable, so this
+ * mainly serves Linux and `npm start`, where the window would otherwise wear
+ * the stock Electron logo. Packaged it sits beside the app in resources/;
+ * in development main.js runs from .vite/build, two levels below the repo.
+ */
+function appIcon() {
+  const candidate = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '..', '..', 'assets', 'icon.png');
+
+  return fs.existsSync(candidate) ? candidate : undefined;
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1180,
@@ -36,6 +109,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 680,
     backgroundColor: '#061A30',
+    icon: appIcon(),
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -55,10 +129,28 @@ function createWindow() {
   // dark navy the app uses throughout.
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
+  /*
+   * Which renderer to load.
+   *
+   * Gated on app.isPackaged rather than on the dev-server constant alone.
+   * Forge's Vite plugin replaces MAIN_WINDOW_VITE_DEV_SERVER_URL with a literal
+   * at build time, and when that literal is the dev server's address the
+   * file-loading branch below becomes dead code and is dropped from the bundle
+   * entirely. The installed app then had no way to load its own renderer: it
+   * pointed at http://localhost:5173 forever, showing whichever Vite project
+   * happened to be running on that port and a bare window when none was.
+   *
+   * app.isPackaged is decided at runtime, so no bundler can fold this away.
+   * The typeof guards keep it safe if the constants are not defined at all.
+   */
+  const devServer =
+    typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' ? MAIN_WINDOW_VITE_DEV_SERVER_URL : null;
+  const rendererName = typeof MAIN_WINDOW_VITE_NAME !== 'undefined' ? MAIN_WINDOW_VITE_NAME : 'main_window';
+
+  if (!app.isPackaged && devServer) {
+    mainWindow.loadURL(devServer);
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    mainWindow.loadFile(path.join(__dirname, `../renderer/${rendererName}/index.html`));
   }
 
   /*
@@ -133,6 +225,12 @@ function setExamLock(locked) {
 }
 
 app.whenReady().then(() => {
+  // Without this Windows groups the window under a generic "electron.app"
+  // entry on the taskbar and shows its icon instead of ours.
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.skillflow.exam');
+  }
+
   createWindow();
 
   app.on('activate', () => {

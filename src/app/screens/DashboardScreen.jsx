@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AppButton, StatTile } from '../components/ui';
+import { AppButton, StatTile, BrandMark } from '../components/ui';
 import { getMySubmissions } from '../api';
 import { clearSession, getSession, isSessionExpired, timeLeftMs } from '../session';
 
@@ -70,6 +70,7 @@ export default function DashboardScreen({ navigation }) {
   return (
     <div className="screen">
       <header className="topbar">
+        <BrandMark />
         <h1>Dashboard</h1>
         <span className="who">{student?.name || ''}</span>
         <AppButton title="Sign out" variant="ghost" onClick={goToLogin} />

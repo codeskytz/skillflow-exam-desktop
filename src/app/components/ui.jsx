@@ -1,3 +1,5 @@
+import logo from '../logo.png';
+
 /**
  * The shared pieces, mirroring exam-portal/src/components.
  *
@@ -98,4 +100,14 @@ export function KeyIcon({ size = 22 }) {
       <path d="M12 12h9M17 12v4M20 12v3" />
     </svg>
   );
+}
+
+/**
+ * The platform mark for the top bar.
+ *
+ * The window is chromeless and the menu bar is hidden, so without this the
+ * only Skillflow branding a student saw after signing in was the page title.
+ */
+export function BrandMark({ size = 28 }) {
+  return <img className="brand-mark" src={logo} width={size} height={size} alt="Skillflow" />;
 }

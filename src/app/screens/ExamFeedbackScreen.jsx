@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AppButton } from '../components/ui';
+import { AppButton, BrandMark } from '../components/ui';
 import { getMySubmission } from '../api';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -55,6 +55,7 @@ export default function ExamFeedbackScreen({ navigation, route }) {
     <div className="screen">
       <header className="topbar">
         <button type="button" className="icon-btn" onClick={back} aria-label="Back">←</button>
+        <BrandMark />
         <h1>{submission.exam_title || 'Your result'}</h1>
       </header>
 

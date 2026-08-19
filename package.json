@@ -7,6 +7,7 @@
   "private": true,
   "scripts": {
     "start": "electron-forge start",
+    "icons": "node scripts/make-icons.mjs",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
@@ -30,10 +31,10 @@
     "@electron/fuses": "^1.8.0",
     "@vitejs/plugin-react": "^4.7.0",
     "electron": "43.4.0",
+    "jimp": "^0.22.12",
     "vite": "^5.4.21"
   },
   "dependencies": {
-    "electron-squirrel-startup": "^1.0.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }
