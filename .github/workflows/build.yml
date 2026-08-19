@@ -1,6 +1,6 @@
-# Build the desktop exam app for Windows, Linux and macOS.
+# Build the desktop exam app for Windows and macOS.
 #
-# Every push to main produces installable artifacts for all three platforms.
+# Every push to main produces installable artifacts for both platforms.
 # Pushing a tag that starts with "v" additionally publishes them as a GitHub
 # Release, which is what the download page can then link to.
 #
@@ -31,7 +31,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # A cheap gate that fails in about a minute rather than after three platform
+  # A cheap gate that fails in about a minute rather than after every platform
   # builds. It catches the faults that build cleanly and only break once the
   # app is installed, which is the class of bug this project has actually hit.
   verify:
@@ -68,17 +68,13 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
-      # One platform failing should not deny you the other three artifacts.
+      # One build failing should not deny you the other artifacts.
       fail-fast: false
       matrix:
         include:
           - name: windows
             os: windows-latest
             # Squirrel installer (.exe) plus its update feed.
-            args: --arch=x64
-          - name: linux
-            os: ubuntu-latest
-            # .deb and .rpm.
             args: --arch=x64
           # The two Mac architectures are separate jobs rather than one
           # comma-separated --arch: Forge documents --arch as taking a single
@@ -100,15 +96,6 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-
-      # The deb and rpm makers shell out to these. The Ubuntu runner has dpkg
-      # but neither fakeroot nor rpmbuild, and Forge's failure when they are
-      # missing does not name them.
-      - name: Install Linux packaging tools
-        if: matrix.name == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y fakeroot dpkg rpm
 
       - name: Install dependencies
         run: npm ci
@@ -134,8 +121,8 @@ jobs:
           # The Squirrel update feed is excluded. RELEASES and the .nupkg are
           # only meaningful to a hosted auto-updater, which this app does not
           # have, and the .nupkg alone is 133 MB — as much as the installer it
-          # duplicates. Keeping it would put ~550 MB per push against the
-          # repository's artifact storage for nothing.
+          # duplicates. Keeping it would put another ~130 MB per push against
+          # the repository's artifact storage for nothing.
           path: |
             out/make/**
             !out/make/**/*.nupkg
@@ -169,7 +156,7 @@ jobs:
           # release wants a flat list of downloads. The Squirrel update feed
           # (RELEASES, .nupkg) is left out: it is only meaningful to a hosted
           # auto-updater, which this app does not have yet.
-          find artifacts -type f \( -name '*.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.zip' \) \
+          find artifacts -type f \( -name '*.exe' -o -name '*.zip' \) \
             -exec cp {} release/ \;
           ls -lh release
 
@@ -184,7 +171,7 @@ jobs:
           gh release create "${{ github.ref_name }}" release/* \
             --repo "${{ github.repository }}" \
             --title "Skillflow Exam ${{ github.ref_name }}" \
-            --notes "Desktop exam client for Windows, Linux and macOS.
+            --notes "Desktop exam client for Windows and macOS.
 
           These builds are not code-signed. Windows shows a SmartScreen warning on first run; on macOS, right-click the app and choose Open the first time."
 

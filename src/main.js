@@ -90,9 +90,9 @@ const isDev = !app.isPackaged;
  * The platform logo for the window and the taskbar.
  *
  * Windows and macOS take the icon from the packaged executable, so this
- * mainly serves Linux and `npm start`, where the window would otherwise wear
- * the stock Electron logo. Packaged it sits beside the app in resources/;
- * in development main.js runs from .vite/build, two levels below the repo.
+ * mainly serves `npm start`, where the window would otherwise wear the stock
+ * Electron logo. Packaged it sits beside the app in resources/; in development
+ * main.js runs from .vite/build, two levels below the repo.
  */
 function appIcon() {
   const candidate = app.isPackaged

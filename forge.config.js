@@ -5,8 +5,8 @@ const path = require('node:path');
 /*
  * The platform icon, built from assets/icon-source.png by `npm run icons`.
  * Given without an extension because packager appends the one each platform
- * wants: .ico on Windows, .icns on macOS, the .png on Linux. Without this the
- * installer, the shortcut and the taskbar all showed the stock Electron logo.
+ * wants: .ico on Windows, .icns on macOS. Without this the installer, the
+ * shortcut and the taskbar all showed the stock Electron logo.
  */
 const ICON = path.join(__dirname, 'assets', 'icon');
 
@@ -15,10 +15,11 @@ module.exports = {
     asar: true,
     icon: ICON,
     name: 'Skillflow Exam',
-    executableName: process.platform === 'linux' ? 'skillflow-exam' : 'Skillflow Exam',
+    executableName: 'Skillflow Exam',
     appCategoryType: 'public.app-category.education',
-    // Also shipped loose so the main process can hand it to BrowserWindow,
-    // which is what puts the logo on the window and taskbar under Linux.
+    // Also shipped loose so the main process can hand it to BrowserWindow.
+    // Windows and macOS take the window icon from the packaged executable, so
+    // this is what `npm start` uses rather than the stock Electron logo.
     extraResource: [path.join(__dirname, 'assets', 'icon.png')],
   },
   rebuildConfig: {},
@@ -38,24 +39,6 @@ module.exports = {
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
-    },
-    {
-      name: '@electron-forge/maker-deb',
-      config: {
-        options: {
-          icon: path.join(__dirname, 'assets', 'icon.png'),
-          categories: ['Education'],
-        },
-      },
-    },
-    {
-      name: '@electron-forge/maker-rpm',
-      config: {
-        options: {
-          icon: path.join(__dirname, 'assets', 'icon.png'),
-          categories: ['Education'],
-        },
-      },
     },
   ],
   plugins: [
