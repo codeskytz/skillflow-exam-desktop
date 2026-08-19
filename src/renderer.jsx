@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { NavigationProvider } from './app/navigator';
+import UpdateGate from './app/components/UpdateGate';
 import WelcomeScreen from './app/screens/WelcomeScreen';
 import LoginScreen from './app/screens/LoginScreen';
 import DashboardScreen from './app/screens/DashboardScreen';
@@ -34,6 +35,12 @@ window.addEventListener('contextmenu', (e) => e.preventDefault());
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <NavigationProvider initialRouteName="Welcome" screens={screens} />
+    {/*
+      * Wraps the whole stack so the check happens once, before any screen, and
+      * a build below the minimum cannot reach the login form at all.
+      */}
+    <UpdateGate>
+      <NavigationProvider initialRouteName="Welcome" screens={screens} />
+    </UpdateGate>
   </StrictMode>,
 );

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
@@ -310,3 +310,29 @@ ipcMain.handle('config:api-base', () => {
 });
 
 ipcMain.handle('config:app-version', () => app.getVersion());
+
+/**
+ * Open the download page for a forced update.
+ *
+ * The URL comes from the server, not from the renderer's imagination, but it is
+ * still checked here: shell.openExternal will happily hand a file:// or a
+ * custom-scheme URL to the operating system, which is a way to launch things
+ * from inside an exam app. Only ordinary web addresses get through.
+ */
+ipcMain.handle('shell:open-download', (_event, url) => {
+  let parsed;
+
+  try {
+    parsed = new URL(String(url));
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return false;
+  }
+
+  shell.openExternal(parsed.toString());
+
+  return true;
+});

@@ -16,6 +16,15 @@ contextBridge.exposeInMainWorld('examShell', {
 
   getAppVersion: () => ipcRenderer.invoke('config:app-version'),
 
+  /**
+   * Open the download page in the system browser.
+   *
+   * The renderer cannot navigate anywhere and cannot open windows, which is
+   * what keeps an exam in its own box. So the one link the update screen needs
+   * goes through the shell, where the main process checks it before opening.
+   */
+  openDownloadPage: (url) => ipcRenderer.invoke('shell:open-download', url),
+
   /** Kiosk, always-on-top and capture protection, for the duration of a paper. */
   lockForExam: () => ipcRenderer.invoke('exam:lock'),
   unlockAfterExam: () => ipcRenderer.invoke('exam:unlock'),

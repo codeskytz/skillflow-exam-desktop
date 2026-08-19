@@ -1,0 +1,202 @@
+# Build the desktop exam app for Windows, Linux and macOS.
+#
+# Every push to main produces installable artifacts for all three platforms.
+# Pushing a tag that starts with "v" additionally publishes them as a GitHub
+# Release, which is what the download page can then link to.
+#
+#   git tag v1.0.1 && git push origin v1.0.1
+#
+# No secrets are required. GITHUB_TOKEN is provided by Actions and is only used
+# to create the release.
+#
+# Not signed. Windows SmartScreen will warn on first run and macOS Gatekeeper
+# will refuse to open the app until the user right-clicks -> Open. Fixing that
+# properly needs a paid certificate on each platform; see the note at the
+# bottom of this file for where the credentials would go.
+
+name: Build Desktop App
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # One build per ref. A newer push makes the one in flight irrelevant, and
+  # these jobs are long — three runners, ~130 MB of output each.
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # A cheap gate that fails in about a minute rather than after three platform
+  # builds. It catches the faults that build cleanly and only break once the
+  # app is installed, which is the class of bug this project has actually hit.
+  verify:
+    name: Verify the production bundle
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Rebuilt from assets/icon-source.png rather than trusted from the repo,
+      # so the committed icons cannot drift from the logo they came from. A
+      # missing icon is not an error to Forge — it silently ships the stock
+      # Electron logo.
+      - name: Generate icons
+        run: npm run icons
+
+      - name: Build the production bundle
+        run: npm run package
+
+      - name: Check it is really a production bundle
+        run: node .github/scripts/verify-bundle.mjs
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      # One platform failing should not deny you the other three artifacts.
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            # Squirrel installer (.exe) plus its update feed.
+            args: --arch=x64
+          - name: linux
+            os: ubuntu-latest
+            # .deb and .rpm.
+            args: --arch=x64
+          # The two Mac architectures are separate jobs rather than one
+          # comma-separated --arch: Forge documents --arch as taking a single
+          # value, and a job per architecture also fails independently and
+          # names itself clearly in the checks list. The runner is Apple
+          # silicon; it cross-builds the Intel one by fetching that Electron
+          # binary, and Intel Macs are still common in Tanzanian institutions.
+          - name: macos-arm64
+            os: macos-latest
+            args: --arch=arm64
+          - name: macos-x64
+            os: macos-latest
+            args: --arch=x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # The deb and rpm makers shell out to these. The Ubuntu runner has dpkg
+      # but neither fakeroot nor rpmbuild, and Forge's failure when they are
+      # missing does not name them.
+      - name: Install Linux packaging tools
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg rpm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate icons
+        run: npm run icons
+
+      - name: Build installers
+        run: npm run make -- ${{ matrix.args }}
+
+      # The same gate again, now against the bundle this platform actually
+      # shipped. `make` rebuilds it, so this is not the artifact verify checked.
+      - name: Check the shipped bundle
+        run: node .github/scripts/verify-bundle.mjs
+
+      - name: List what was produced
+        shell: bash
+        run: find out/make -type f -exec ls -lh {} \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skillflow-exam-${{ matrix.name }}
+          # The Squirrel update feed is excluded. RELEASES and the .nupkg are
+          # only meaningful to a hosted auto-updater, which this app does not
+          # have, and the .nupkg alone is 133 MB — as much as the installer it
+          # duplicates. Keeping it would put ~550 MB per push against the
+          # repository's artifact storage for nothing.
+          path: |
+            out/make/**
+            !out/make/**/*.nupkg
+            !out/make/**/RELEASES
+          # Installers are already compressed; re-zipping them only costs time.
+          compression-level: 0
+          # Long enough to grab a build from a push. Tagged builds live on as
+          # release assets instead, which is the durable copy.
+          retention-days: 7
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    # Only for a version tag. Pushes to main still produce artifacts above.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect the installers
+        run: |
+          mkdir -p release
+          # Flattened because the artifact directories nest by maker, and a
+          # release wants a flat list of downloads. The Squirrel update feed
+          # (RELEASES, .nupkg) is left out: it is only meaningful to a hosted
+          # auto-updater, which this app does not have yet.
+          find artifacts -type f \( -name '*.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.zip' \) \
+            -exec cp {} release/ \;
+          ls -lh release
+
+      # --notes rather than a heredoc: a heredoc terminator inside a YAML block
+      # scalar has to line up with the block's own indentation and is silently
+      # swallowed when it does not, which has bitten this project before. Also
+      # only one of --notes / --notes-file / --generate-notes may be given.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" release/* \
+            --repo "${{ github.repository }}" \
+            --title "Skillflow Exam ${{ github.ref_name }}" \
+            --notes "Desktop exam client for Windows, Linux and macOS.
+
+          These builds are not code-signed. Windows shows a SmartScreen warning on first run; on macOS, right-click the app and choose Open the first time."
+
+# ---------------------------------------------------------------------------
+# Adding code signing later
+#
+# Windows: set WINDOWS_CERTIFICATE (base64 .pfx) and WINDOWS_CERTIFICATE_PASSWORD
+# as repository secrets, then give maker-squirrel `certificateFile` and
+# `certificatePassword` in forge.config.js.
+#
+# macOS: notarisation needs an Apple Developer account. Set APPLE_ID,
+# APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID, then add `osxSign` and
+# `osxNotarize` to packagerConfig. Without it the app still runs, but only
+# after the user explicitly allows it.
+# ---------------------------------------------------------------------------

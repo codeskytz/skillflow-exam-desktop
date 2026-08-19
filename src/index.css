@@ -450,3 +450,57 @@ input, textarea { user-select: text; -webkit-user-select: text; }
   letter-spacing: 0.4px;
   color: var(--text-muted);
 }
+
+/* ---------- Forced update ---------- */
+
+.update-screen { padding: 24px; }
+
+.update-logo {
+  width: 64px; height: 64px; border-radius: 16px;
+  margin: 0 auto 16px; display: block;
+}
+
+.update-title { font-size: 22px; font-weight: 800; margin-bottom: 10px; }
+
+.update-text {
+  color: var(--text-muted); font-size: 14px; line-height: 21px;
+  margin-bottom: 16px;
+}
+
+.update-versions {
+  display: flex; flex-direction: column; gap: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px; padding: 12px;
+  font-size: 13px; color: #b8c6d8; margin-bottom: 14px;
+}
+.update-versions strong { color: var(--gold-light); }
+
+.update-notes {
+  text-align: left; font-size: 13px; line-height: 20px;
+  color: #b8c6d8; background: rgba(255, 255, 255, 0.04);
+  border-left: 3px solid var(--gold); border-radius: 6px;
+  padding: 10px 12px; margin-bottom: 18px; white-space: pre-wrap;
+}
+
+/* The non-blocking nudge, for a build that is merely behind. */
+.update-banner {
+  position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px;
+  background: var(--navy); border: 1px solid var(--gold);
+  border-radius: 10px; padding: 10px 14px;
+  font-size: 13px; color: #e8eef6;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 60; max-width: 90vw;
+}
+
+.update-banner-link {
+  background: var(--gold); color: var(--navy-dark);
+  border: none; border-radius: 6px; padding: 5px 10px;
+  font-size: 12px; font-weight: 800; cursor: pointer;
+}
+
+.update-banner-close {
+  background: none; border: none; color: #8fa3bd;
+  font-size: 14px; cursor: pointer; padding: 2px 4px;
+}
+.update-banner-close:hover { color: #fff; }

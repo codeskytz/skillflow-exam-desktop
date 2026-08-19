@@ -26,8 +26,34 @@ async function apiBase() {
   return cachedBase;
 }
 
+let cachedVersion = null;
+
+/** What this build calls itself, for the update gate and the server's check. */
+export async function appVersion() {
+  if (cachedVersion) return cachedVersion;
+
+  try {
+    cachedVersion = (await window.examShell?.getAppVersion()) || null;
+  } catch {
+    cachedVersion = null;
+  }
+
+  return cachedVersion;
+}
+
 async function request(path, { method = 'GET', body, auth = true } = {}) {
   const headers = { Accept: 'application/json' };
+
+  /*
+   * Every request says which app it is and what version. The server refuses to
+   * hand out a paper to a build below the configured minimum, so the gate does
+   * not depend on this app choosing to honour it — an old build that predates
+   * the check still cannot start an exam.
+   */
+  headers['X-App-Platform'] = 'desktop';
+
+  const version = await appVersion();
+  if (version) headers['X-App-Version'] = version;
 
   if (auth) {
     const session = await getSession();
@@ -112,4 +138,26 @@ export async function getMySubmission(submissionId) {
  */
 export async function currentApiBase() {
   return apiBase();
+}
+
+/**
+ * Ask whether this build is still allowed to run.
+ *
+ * Unauthenticated on purpose: it runs before the login screen, so a build too
+ * old to sign in correctly says so rather than showing a form that will fail.
+ *
+ * Never throws. A student with no connection, or a server having a bad day,
+ * must not be met with a wall telling them to update — that would turn every
+ * outage into a lockout. Unreachable means "carry on", and the server-side
+ * check still stops an old build from starting a paper once it is reachable.
+ */
+export async function checkForUpdate() {
+  try {
+    const version = await appVersion();
+    const query = new URLSearchParams({ platform: 'desktop', ...(version ? { version } : {}) });
+
+    return await request(`/app-version?${query}`, { auth: false });
+  } catch {
+    return null;
+  }
 }
